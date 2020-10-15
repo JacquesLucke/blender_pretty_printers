@@ -2,6 +2,7 @@ import gdb
 from pprint import pprint
 import traceback
 import typing as t
+import functools
 
 nullptr = 0x0
 
@@ -68,24 +69,29 @@ def make_raw_field_items(value: gdb.Value):
     for field in value.type.fields():
         yield field.name, value[field.name]
 
-class IDPrinter:
-    def __init__(self, value: gdb.Value):
-        self.value = value
+registered_struct_printers = {}
 
-    def children(self):
-        yield make_address_item(self.value)
-        yield make_debug_item("Name", string_from_array(self.value["id"]["name"]))
-        yield make_debug_item("Is Original", DEG_is_original_id(self.value["id"]))
-        yield from make_raw_field_items(self.value)
+def struct_printer(function):
+    prefix = "print_"
+    function_name = function.__name__
+    if not function_name.startswith(prefix):
+        raise Exception()
+    struct_name = function_name[len(prefix):]
+    registered_struct_printers[struct_name] = function
+    return function
 
-class WmOperatorPrinter:
-    def __init__(self, value):
-        self.value = value
+@struct_printer
+def print_ID(value: gdb.Value):
+    yield "Name", string_from_array(value["name"])
+    yield "Is Original", DEG_is_original_id(value)
 
-    def children(self):
-        yield make_address_item(self.value)
-        yield make_debug_item("Idname", string_from_array(self.value["idname"]))
-        yield from make_raw_field_items(self.value)
+@struct_printer
+def print_Object(value: gdb.Value):
+    yield from print_ID(value["id"])
+
+@struct_printer
+def print_wmOperator(value: gdb.Value):
+    yield "Idname", string_from_array(value["idname"])
 
 class DisplayStringPrinter:
     def __init__(self, value):
@@ -94,25 +100,56 @@ class DisplayStringPrinter:
     def to_string(self):
         return extract_display_string(self.value)
 
-def is_pointer_to_struct(value: gdb.Value, struct_name: str):
-    if value.type.code == gdb.TYPE_CODE_PTR:
-        if value != nullptr:
-            if value.type.target().name == struct_name:
-                return True
-    return False
+class SimpleStructPrinter:
+    def __init__(self, value: gdb.Value, printer):
+        self.value = value
+        self.printer = printer
+
+    def children(self):
+        yield make_address_item(self.value)
+        for key, value in self.printer(self.value):
+            yield make_debug_item(key, value)
+        yield from make_raw_field_items(self.value)
+
+class GenericIDPrinter:
+    def __init__(self, value: gdb.Value):
+        self.value = value
+
+    def children(self):
+        yield make_address_item(self.value)
+        for key, value in print_ID(self.value["id"]):
+            yield make_debug_item(key, value)
+        yield from make_raw_field_items(self.value)
+
 
 class BlenderPrettyPrinter(gdb.printing.PrettyPrinter):
     def __init__(self):
         super().__init__("blender_printer", [])
 
-    def __call__(self, value: gdb.Value):
-        ...
+    def lookup_printer(self, value: gdb.Value):
+        if value.type.code == gdb.TYPE_CODE_PTR and value == nullptr:
+            return None
         if is_display_string(value):
             return DisplayStringPrinter(value)
+        if value.type.code == gdb.TYPE_CODE_PTR:
+            target_type = value.type.target()
+            if target_type is not None and target_type.name is not None:
+                if target_type.name in registered_struct_printers:
+                    return SimpleStructPrinter(value.dereference(), registered_struct_printers[target_type.name])
 
-        if is_pointer_to_struct(value, "Object"):
-            return IDPrinter(value.dereference())
-        if is_pointer_to_struct(value, "wmOperator"):
-            return WmOperatorPrinter(value.dereference())
+
+    def __call__(self, value: gdb.Value):
+        try:
+            return self.lookup_printer(value)
+        except:
+            print(traceback.format_exc())
+            return None
+                    # print(list(p.children()))
+                # print("a", target_type.fields())
+                # fields = target_type.fields()
+                # print("b")
+                # if len(fields) >= 1:
+                #     if fields[0].name == "id" and fields[0].type.name == "ID":
+                #         return GenericIDPrinter(value.dereference())
 
 gdb.printing.register_pretty_printer(None, BlenderPrettyPrinter(), replace=True)
