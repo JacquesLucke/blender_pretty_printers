@@ -90,11 +90,20 @@ def struct_printer(function):
 def print_ID(value: gdb.Value):
     yield "Name", string_from_array(value["name"])
 
+@functools.lru_cache
 def lookup_enum_value(name: str):
     return int(gdb.lookup_global_symbol(name).value())
 
+@functools.lru_cache
 def lookup_type(name: str):
-    return gdb.lookup_global_symbol(name).type
+    base_name = name.replace("*", "").strip()
+    base_type = gdb.lookup_global_symbol(base_name).type
+    for _ in range(name.count("*")):
+        base_type = base_type.pointer()
+    return base_type
+
+def cast(value: gdb.Value, type_name: str) -> gdb.Value:
+    return value.cast(lookup_type(type_name))
 
 object_types = [
     ("OB_MESH", "Mesh"),
@@ -109,7 +118,7 @@ def print_Object(value: gdb.Value):
 
     for enum_name, type_name in object_types:
         if object_type == lookup_enum_value(enum_name):
-            yield f"{type_name} Data", value["data"].cast(lookup_type(type_name).pointer())
+            yield f"{type_name} Data", cast(value["data"], type_name + "*")
             break
     else:
         yield "Data", value["data"]
@@ -119,7 +128,7 @@ def print_wmOperator(value: gdb.Value):
     yield "Idname", string_from_array(value["idname"])
 
 def listbase_len(listbase: gdb.Value):
-    link = listbase["first"].cast(lookup_type("LinkData").pointer())
+    link = cast(listbase["first"], "LinkData *")
     count = 0
     while link != nullptr:
         count += 1
@@ -127,8 +136,14 @@ def listbase_len(listbase: gdb.Value):
     return count
 
 @struct_printer
-def print_ListBase(value: gdb.Value):
-    yield "Length", listbase_len(value)
+def print_ListBase(listbase: gdb.Value):
+    yield "Length", listbase_len(listbase)
+    link = cast(listbase["first"], "LinkData *")
+    index = 0
+    while link != nullptr:
+        yield index, str(link)
+        link = link["next"]
+        index += 1
 
 class DisplayStringPrinter:
     def __init__(self, value):
@@ -143,10 +158,15 @@ class SimpleStructPrinter:
         self.printer = printer
 
     def children(self):
-        yield make_address_item(self.value)
-        for key, value in self.printer(self.value):
-            yield make_debug_item(key, value)
-        yield from make_raw_field_items(self.value)
+        try:
+            yield make_address_item(self.value)
+            for key, value in self.printer(self.value):
+                yield make_debug_item(key, value)
+            yield from make_raw_field_items(self.value)
+        except Exception as e:
+            if isinstance(e, GeneratorExit):
+                raise
+            print(traceback.format_exc())
 
 class GenericIDPrinter:
     def __init__(self, value: gdb.Value):
