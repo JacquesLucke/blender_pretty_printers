@@ -145,6 +145,10 @@ def print_ListBase(listbase: gdb.Value):
         link = link["next"]
         index += 1
 
+@struct_printer
+def print_ModifierData(modifier: gdb.Value):
+    yield "Name", string_from_array(modifier["name"])
+
 class DisplayStringPrinter:
     def __init__(self, value):
         self.value = value
