@@ -127,6 +127,8 @@ class BlenderPrettyPrinter(gdb.printing.PrettyPrinter):
         super().__init__("blender_printer", [])
 
     def lookup_printer(self, value: gdb.Value):
+        if value.type is None:
+            return None
         if value.type.code == gdb.TYPE_CODE_PTR and value == nullptr:
             return None
         if is_display_string(value):
@@ -136,7 +138,8 @@ class BlenderPrettyPrinter(gdb.printing.PrettyPrinter):
             if target_type is not None and target_type.name is not None:
                 if target_type.name in registered_struct_printers:
                     return SimpleStructPrinter(value.dereference(), registered_struct_printers[target_type.name])
-
+        if value.type.name in registered_struct_printers:
+            return SimpleStructPrinter(value, registered_struct_printers[value.type.name])
 
     def __call__(self, value: gdb.Value):
         try:
