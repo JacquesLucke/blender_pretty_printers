@@ -3,6 +3,7 @@ from pprint import pprint
 import traceback
 
 nullptr = 0x0
+debug_prefix = "[DEBUG] "
 
 def null_terminated_string_in_array(value: gdb.Value):
     assert value.type.code == gdb.TYPE_CODE_ARRAY
@@ -49,30 +50,31 @@ def DEG_is_original_id(value: gdb.Value) -> bool:
     result = gdb.parse_and_eval(expr)
     return bool(result)
 
+def make_address_item(value: gdb.Value):
+    return debug_prefix + "Address", make_display_string(hex(value.address))
+
+def make_raw_field_items(value: gdb.Value):
+    for field in value.type.fields():
+        yield field.name, value[field.name]
+
 class IDPrinter:
     def __init__(self, value: gdb.Value):
         self.value = value
 
     def children(self):
-        yield "[DEBUG] Address", make_display_string(hex(self.value.address))
-        yield "[DEBUG] Name", string_from_array(self.value["id"]["name"])
-        yield "[DEBUG] Is Original", DEG_is_original_id(self.value["id"])
-        for field in self.value.type.fields():
-            yield field.name, self.value[field.name]
+        yield make_address_item(self.value)
+        yield debug_prefix + " Name", string_from_array(self.value["id"]["name"])
+        yield debug_prefix + " Is Original", DEG_is_original_id(self.value["id"])
+        yield from make_raw_field_items(self.value)
 
 class WmOperatorPrinter:
     def __init__(self, value):
         self.value = value
 
-    def to_string(self):
-        name = self.value["idname"]
-        return string_from_array(name)
-
     def children(self):
-        return [
-            ("idname", string_from_array(self.value["idname"])),
-            ("properties", self.value["properties"]),
-        ]
+        yield make_address_item(self.value)
+        yield debug_prefix + "Idname", string_from_array(self.value["idname"])
+        yield from make_raw_field_items(self.value)
 
 class DisplayStringPrinter:
     def __init__(self, value):
@@ -99,8 +101,7 @@ class BlenderPrettyPrinter(gdb.printing.PrettyPrinter):
 
         if is_pointer_to_struct(value, "Object"):
             return IDPrinter(value.dereference())
-        # if is_pointer_to_struct(value, "wmOperator"):
-        #     return WmOperatorPrinter(value.dereference())
-        # return None
+        if is_pointer_to_struct(value, "wmOperator"):
+            return WmOperatorPrinter(value.dereference())
 
 gdb.printing.register_pretty_printer(None, BlenderPrettyPrinter(), replace=True)
