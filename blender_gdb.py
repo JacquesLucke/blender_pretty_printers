@@ -42,10 +42,18 @@ def is_display_string(value: gdb.Value):
             return False
     return True
 
-def DEG_is_original_id(value: gdb.Value) -> bool:
-    expr = f"DEG_is_original_id((ID *){value.address})"
+def eval_function(function_name, *args: t.List[gdb.Value]):
+    arg_list = []
+    for arg in args:
+        arg_list.append(f"({arg.type.name} *){hex(int(arg.address))}")
+
+    arg_list_str = ", ".join(arg_list)
+    expr = f"{function_name}({arg_list_str})"
     result = gdb.parse_and_eval(expr)
-    return bool(result)
+    return result
+
+def DEG_is_original_id(value: gdb.Value) -> bool:
+    return bool(eval_function("DEG_is_original_id", value))
 
 def make_debug_item(key: t.Union[int, str], value: t.Union[str, int, bool, float, gdb.Value]):
     key = f"[{str(key)}]"
