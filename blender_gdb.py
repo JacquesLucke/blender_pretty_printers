@@ -23,7 +23,7 @@ def string_from_array(value: gdb.Value):
 # Some random string.
 display_string_prefix = "#?*="
 
-def make_display_string(text):
+def make_display_string(text: str):
     return gdb.Value(display_string_prefix + text)
 
 def extract_display_string(value: gdb.Value):
@@ -54,6 +54,7 @@ class IDPrinter:
         self.value = value
 
     def children(self):
+        yield "[DEBUG] Address", make_display_string(hex(self.value.address))
         yield "[DEBUG] Name", string_from_array(self.value["id"]["name"])
         yield "[DEBUG] Is Original", DEG_is_original_id(self.value["id"])
         for field in self.value.type.fields():
