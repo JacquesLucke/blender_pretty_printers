@@ -126,8 +126,14 @@ class Value:
     def fetch_lazy(self):
         pass
 
+    def cast(self, type: Type) -> Value:
+        pass
+
 
 def lookup_type(name: str, block=None) -> Type:
+    pass
+
+def lookup_global_symbol(name: str):
     pass
 
 def execute(command: str, from_tty=None, to_string=None):

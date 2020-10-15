@@ -90,9 +90,27 @@ def struct_printer(function):
 def print_ID(value: gdb.Value):
     yield "Name", string_from_array(value["name"])
 
+def lookup_enum_value(name: str):
+    return int(gdb.lookup_global_symbol(name).value())
+
+object_types = [
+    ("OB_MESH", "Mesh"),
+    ("OB_LAMP", "Light"),
+    ("OB_CAMERA", "Camera"),
+]
+
 @struct_printer
 def print_Object(value: gdb.Value):
     yield from print_ID(value["id"])
+    object_type = int(value["type"])
+
+    for enum_name, type_name in object_types:
+        if object_type == lookup_enum_value(enum_name):
+            yield f"{type_name} Data", value["data"].cast(gdb.lookup_global_symbol(type_name).type.pointer())
+            break
+    else:
+        yield "Data", value["data"]
+
 
 @struct_printer
 def print_wmOperator(value: gdb.Value):
