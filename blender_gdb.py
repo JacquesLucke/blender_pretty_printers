@@ -20,7 +20,10 @@ def string_from_array(value: gdb.Value):
     except gdb.MemoryError:
         return ""
 
-    return bytes(str_bytes).decode('utf8')
+    try:
+        return bytes(str_bytes).decode('utf8')
+    except UnicodeDecodeError:
+        return "<utf8 decode error>"
 
 # Some random string.
 display_string_prefix = "#?*="
@@ -148,6 +151,10 @@ def print_ListBase(listbase: gdb.Value):
 @struct_printer
 def print_ModifierData(modifier: gdb.Value):
     yield "Name", string_from_array(modifier["name"])
+
+@struct_printer
+def print_bConstraint(constraint: gdb.Value):
+    yield "Name", string_from_array(constraint["name"])
 
 class DisplayStringPrinter:
     def __init__(self, value):
