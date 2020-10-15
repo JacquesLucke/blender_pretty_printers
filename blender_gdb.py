@@ -93,6 +93,9 @@ def print_ID(value: gdb.Value):
 def lookup_enum_value(name: str):
     return int(gdb.lookup_global_symbol(name).value())
 
+def lookup_type(name: str):
+    return gdb.lookup_global_symbol(name).type
+
 object_types = [
     ("OB_MESH", "Mesh"),
     ("OB_LAMP", "Light"),
@@ -106,15 +109,26 @@ def print_Object(value: gdb.Value):
 
     for enum_name, type_name in object_types:
         if object_type == lookup_enum_value(enum_name):
-            yield f"{type_name} Data", value["data"].cast(gdb.lookup_global_symbol(type_name).type.pointer())
+            yield f"{type_name} Data", value["data"].cast(lookup_type(type_name).pointer())
             break
     else:
         yield "Data", value["data"]
 
-
 @struct_printer
 def print_wmOperator(value: gdb.Value):
     yield "Idname", string_from_array(value["idname"])
+
+def listbase_len(listbase: gdb.Value):
+    link = listbase["first"].cast(lookup_type("LinkData").pointer())
+    count = 0
+    while link != nullptr:
+        count += 1
+        link = link["next"]
+    return count
+
+@struct_printer
+def print_ListBase(value: gdb.Value):
+    yield "Length", listbase_len(value)
 
 class DisplayStringPrinter:
     def __init__(self, value):
