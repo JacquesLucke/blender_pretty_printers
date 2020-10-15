@@ -1,11 +1,11 @@
 import gdb
 from pprint import pprint
 import traceback
+import typing as t
 
 nullptr = 0x0
-debug_prefix = "[DEBUG] "
 
-def null_terminated_string_in_array(value: gdb.Value):
+def string_from_array(value: gdb.Value):
     assert value.type.code == gdb.TYPE_CODE_ARRAY
     assert value.type.target().sizeof == 1
 
@@ -17,9 +17,6 @@ def null_terminated_string_in_array(value: gdb.Value):
         str_bytes.append(int(c))
 
     return bytes(str_bytes).decode('utf8')
-
-def string_from_array(value: gdb.Value):
-    return make_display_string(null_terminated_string_in_array(value))
 
 # Some random string.
 display_string_prefix = "#?*="
@@ -50,8 +47,14 @@ def DEG_is_original_id(value: gdb.Value) -> bool:
     result = gdb.parse_and_eval(expr)
     return bool(result)
 
+def make_debug_item(key: t.Union[int, str], value: t.Union[str, int, bool, float, gdb.Value]):
+    key = f"[{str(key)}]"
+    if isinstance(value, str):
+        value = make_display_string(value)
+    return key, value
+
 def make_address_item(value: gdb.Value):
-    return debug_prefix + "Address", make_display_string(hex(value.address))
+    return make_debug_item("Address", hex(value.address))
 
 def make_raw_field_items(value: gdb.Value):
     for field in value.type.fields():
@@ -63,8 +66,8 @@ class IDPrinter:
 
     def children(self):
         yield make_address_item(self.value)
-        yield debug_prefix + " Name", string_from_array(self.value["id"]["name"])
-        yield debug_prefix + " Is Original", DEG_is_original_id(self.value["id"])
+        yield make_debug_item("Name", string_from_array(self.value["id"]["name"]))
+        yield make_debug_item("Is Original", DEG_is_original_id(self.value["id"]))
         yield from make_raw_field_items(self.value)
 
 class WmOperatorPrinter:
@@ -73,7 +76,7 @@ class WmOperatorPrinter:
 
     def children(self):
         yield make_address_item(self.value)
-        yield debug_prefix + "Idname", string_from_array(self.value["idname"])
+        yield make_debug_item("Idname", string_from_array(self.value["idname"]))
         yield from make_raw_field_items(self.value)
 
 class DisplayStringPrinter:
