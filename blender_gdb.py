@@ -10,12 +10,15 @@ def string_from_array(value: gdb.Value):
     assert value.type.code == gdb.TYPE_CODE_ARRAY
     assert value.type.target().sizeof == 1
 
-    str_bytes = []
-    for i in range(value.type.sizeof):
-        c = value[i]
-        if c == nullptr:
-            break
-        str_bytes.append(int(c))
+    try:
+        str_bytes = []
+        for i in range(value.type.sizeof):
+            c = value[i]
+            if c == nullptr:
+                break
+            str_bytes.append(int(c))
+    except gdb.MemoryError:
+        return ""
 
     return bytes(str_bytes).decode('utf8')
 
@@ -38,9 +41,12 @@ def is_display_string(value: gdb.Value):
     target = value.type.target()
     if target.sizeof != 1:
         return False
-    for i in range(len(display_string_prefix)):
-        if ord(display_string_prefix[i]) != int(value[i]):
-            return False
+    try:
+        for i in range(len(display_string_prefix)):
+            if ord(display_string_prefix[i]) != int(value[i]):
+                return False
+    except gdb.MemoryError:
+        return False
     return True
 
 def eval_function(function_name, *args: t.List[gdb.Value]):
@@ -83,7 +89,6 @@ def struct_printer(function):
 @struct_printer
 def print_ID(value: gdb.Value):
     yield "Name", string_from_array(value["name"])
-    yield "Is Original", DEG_is_original_id(value)
 
 @struct_printer
 def print_Object(value: gdb.Value):
@@ -116,10 +121,15 @@ class GenericIDPrinter:
         self.value = value
 
     def children(self):
-        yield make_address_item(self.value)
-        for key, value in print_ID(self.value["id"]):
-            yield make_debug_item(key, value)
-        yield from make_raw_field_items(self.value)
+        try:
+            yield make_address_item(self.value)
+            for key, value in print_ID(self.value["id"]):
+                yield make_debug_item(key, value)
+            yield from make_raw_field_items(self.value)
+        except Exception as e:
+            if isinstance(e, GeneratorExit):
+                raise
+            print(traceback.format_exc())
 
 
 class BlenderPrettyPrinter(gdb.printing.PrettyPrinter):
@@ -138,6 +148,10 @@ class BlenderPrettyPrinter(gdb.printing.PrettyPrinter):
             if target_type is not None and target_type.name is not None:
                 if target_type.name in registered_struct_printers:
                     return SimpleStructPrinter(value.dereference(), registered_struct_printers[target_type.name])
+                try: fields = target_type.fields()
+                except: fields = []
+                if len(fields) >= 1 and fields[0].name == "id" and fields[0].type.name == "ID":
+                    return GenericIDPrinter(value.dereference())
         if value.type.name in registered_struct_printers:
             return SimpleStructPrinter(value, registered_struct_printers[value.type.name])
 
@@ -147,12 +161,5 @@ class BlenderPrettyPrinter(gdb.printing.PrettyPrinter):
         except:
             print(traceback.format_exc())
             return None
-                    # print(list(p.children()))
-                # print("a", target_type.fields())
-                # fields = target_type.fields()
-                # print("b")
-                # if len(fields) >= 1:
-                #     if fields[0].name == "id" and fields[0].type.name == "ID":
-                #         return GenericIDPrinter(value.dereference())
 
 gdb.printing.register_pretty_printer(None, BlenderPrettyPrinter(), replace=True)

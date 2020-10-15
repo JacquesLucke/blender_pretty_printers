@@ -135,3 +135,6 @@ def execute(command: str, from_tty=None, to_string=None):
 
 def parse_and_eval(expression: str) -> gdb.Value:
     pass
+
+class MemoryError(Exception):
+    pass
