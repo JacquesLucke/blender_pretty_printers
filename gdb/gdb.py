@@ -129,6 +129,9 @@ class Value:
     def cast(self, type: Type) -> Value:
         pass
 
+    def reinterpret_cast(self, type: Type) -> Value:
+        pass
+
 
 def lookup_type(name: str, block=None) -> Type:
     pass
