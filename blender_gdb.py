@@ -85,19 +85,6 @@ def extract_dummy_value_printer(value: gdb.Value):
 def make_display_string(text: str):
     return make_dummy_value_printer(JustText(text))
 
-def eval_function(function_name, *args: t.List[gdb.Value]):
-    arg_list = []
-    for arg in args:
-        arg_list.append(f"({arg.type.name} *){hex(int(arg.address))}")
-
-    arg_list_str = ", ".join(arg_list)
-    expr = f"{function_name}({arg_list_str})"
-    result = gdb.parse_and_eval(expr)
-    return result
-
-def DEG_is_original_id(value: gdb.Value) -> bool:
-    return bool(eval_function("DEG_is_original_id", value))
-
 def make_debug_item(key: t.Union[int, str], value: t.Union[str, int, bool, float, gdb.Value]):
     key = f"[{str(key)}]"
     if isinstance(value, str):
