@@ -255,20 +255,19 @@ class BlenderPrettyPrinter(gdb.printing.PrettyPrinter):
     def lookup_printer(self, value: gdb.Value):
         if value.type is None:
             return None
-        if value.type.code == gdb.TYPE_CODE_PTR and value == nullptr:
+        if value.type.code == gdb.TYPE_CODE_PTR:
             return None
         dummy_value_printer = extract_dummy_value_printer(value)
         if dummy_value_printer is not None:
             return dummy_value_printer
-        if value.type.code == gdb.TYPE_CODE_PTR:
-            target_type = value.type.target()
-            if target_type is not None and target_type.name is not None:
-                if target_type.name in registered_struct_printers:
-                    return SimpleStructPrinter(value.dereference(), registered_struct_printers[target_type.name])
-                try: fields = target_type.fields()
+        if value.type.code == gdb.TYPE_CODE_TYPEDEF:
+            if value.type.name is not None:
+                if value.type.name in registered_struct_printers:
+                    return SimpleStructPrinter(value, registered_struct_printers[value.type.name])
+                try: fields = value.type.fields()
                 except: fields = []
                 if len(fields) >= 1 and fields[0].name == "id" and fields[0].type.name == "ID":
-                    return GenericIDPrinter(value.dereference())
+                    return GenericIDPrinter(value)
         if value.type.name in registered_struct_printers:
             return SimpleStructPrinter(value, registered_struct_printers[value.type.name])
 
