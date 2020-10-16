@@ -163,23 +163,23 @@ def print_Object(value: gdb.Value):
 def print_wmOperator(value: gdb.Value):
     yield "Idname", string_from_array(value["idname"])
 
-def listbase_len(listbase: gdb.Value):
-    link = cast(listbase["first"], "LinkData *")
-    count = 0
-    while link != nullptr:
-        count += 1
-        link = link["next"]
-    return count
-
 @struct_printer
 def print_ListBase(listbase: gdb.Value):
-    yield "Length", listbase_len(listbase)
-    link = cast(listbase["first"], "LinkData *")
-    index = 0
-    while link != nullptr:
-        yield index, str(link)
-        link = link["next"]
-        index += 1
+    try:
+        link = cast(listbase["first"], "LinkData *")
+        links = []
+        while True:
+            if link == nullptr:
+                break
+            links.append(link)
+            link = link["next"]
+    except gdb.MemoryError:
+        yield "<memory error>"
+        return
+
+    yield "Length", len(links)
+    for i, link in enumerate(links):
+        yield i, str(link)
 
 @struct_printer
 def print_ModifierData(modifier: gdb.Value):
