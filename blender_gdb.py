@@ -34,7 +34,11 @@ def print_traceback(value):
     print(traceback.format_exc())
 
 @dataclass
-class JustText:
+class DummyValue:
+    pass
+
+@dataclass
+class JustText(DummyValue):
     text: str
 
     def to_string(self):
@@ -82,13 +86,12 @@ def extract_dummy_value_printer(value: gdb.Value):
 
     return dummy_value
 
-def make_display_string(text: str):
-    return make_dummy_value_printer(JustText(text))
-
-def make_debug_item(key: t.Union[int, str], value: t.Union[str, int, bool, float, gdb.Value]):
+def make_debug_item(key: t.Union[int, str], value: t.Union[str, int, bool, float, gdb.Value, DummyValue]):
     key = f"[{str(key)}]"
     if isinstance(value, str):
-        value = make_display_string(value)
+        value = JustText(value)
+    if isinstance(value, DummyValue):
+        value = make_dummy_value_printer(value)
     return key, value
 
 def make_address_item(value: gdb.Value):
@@ -128,6 +131,9 @@ def lookup_type(name: str):
 def cast(value: gdb.Value, type_name: str) -> gdb.Value:
     return value.cast(lookup_type(type_name))
 
+def reinterpret_cast(value: gdb.Value, type_name: str) -> gdb.Value:
+    return value.reinterpret_cast(lookup_type(type_name))
+
 object_types = [
     ("OB_MESH", "Mesh"),
     ("OB_LAMP", "Light"),
@@ -150,15 +156,43 @@ def print_Object(value: gdb.Value):
 def print_wmOperator(value: gdb.Value):
     yield "Idname", string_from_array(value["idname"])
 
-def get_listbase_elements(listbase: gdb.Value):
-    link = cast(listbase["first"], "LinkData *")
-    links = []
+def get_pointer_chain(first: gdb.Value, pointer_name: str):
+    elements = []
+    elements_set = set()
+    element = first
     while True:
-        if link == nullptr:
+        if element == nullptr:
             break
-        links.append(link)
-        link = link["next"]
-    return links
+        if element in elements_set:
+            break
+        elements.append(element)
+        elements_set.add(element)
+        element = element[pointer_name]
+    return elements
+
+def get_full_double_linked_list(any_link: gdb.Value):
+    previous_elements = get_pointer_chain(any_link, "prev")
+    next_elements = get_pointer_chain(any_link, "next")
+    return previous_elements[::-1] + next_elements[1:]
+
+def get_listbase_elements(listbase: gdb.Value):
+    first = cast(listbase["first"], "LinkData *")
+    return get_pointer_chain(first, "next")
+
+@dataclass
+class TypedListBase(DummyValue):
+    any_link_address: int
+    data_type: str
+
+    def children(self):
+        try:
+            any_link = reinterpret_cast(gdb.Value(self.any_link_address), self.data_type + "*")
+            all_links = get_full_double_linked_list(any_link)
+            yield from (make_debug_item(i, link) for i, link in enumerate(all_links))
+        except Exception as e:
+            if isinstance(e, GeneratorExit):
+                raise
+            print(traceback.format_exc())
 
 @struct_printer
 def print_ListBase(listbase: gdb.Value):
@@ -175,6 +209,8 @@ def print_ListBase(listbase: gdb.Value):
 @struct_printer
 def print_ModifierData(modifier: gdb.Value):
     yield "Name", string_from_array(modifier["name"])
+    # Seems to lead to infinite loops currently.
+    # yield "Modifier List", TypedListBase(int(modifier.address), "ModifierData")
 
 @struct_printer
 def print_bConstraint(constraint: gdb.Value):
