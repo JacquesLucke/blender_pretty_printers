@@ -3,6 +3,7 @@ from pprint import pprint
 import traceback
 import typing as t
 import functools
+from dataclasses import dataclass
 
 nullptr = 0x0
 
@@ -26,31 +27,63 @@ def string_from_array(value: gdb.Value):
         return "<utf8 decode error>"
 
 # Some random string.
-display_string_prefix = "#?*="
+dummy_type_prefix = "=*?="
+
+def print_traceback(value):
+    '''Print the traceback to stdout. Otherwise it might not be printed in some cases in vscode.'''
+    print(traceback.format_exc())
+
+@dataclass
+class JustText:
+    text: str
+
+    def to_string(self):
+        return self.text
+
+def make_dummy_value_printer(value):
+    value_str = repr(value)
+    return gdb.Value(dummy_type_prefix + value_str)
+
+def extract_dummy_value_printer(value: gdb.Value):
+    if value.type.code != gdb.TYPE_CODE_ARRAY:
+        return None
+    if value.type.sizeof < len(dummy_type_prefix):
+        return None
+    if value.type.target().sizeof != 1:
+        # Expected char type.
+        return None
+
+    try:
+        for i in range(len(dummy_type_prefix)):
+            if ord(dummy_type_prefix[i]) != value[i]:
+                # Prefix did not match.
+                return None
+    except gdb.MemoryError:
+        return None
+
+    try:
+        str_bytes = []
+        for i in range(len(dummy_type_prefix), value.type.sizeof):
+            str_bytes.append(int(value[i]))
+    except gdb.MemoryError:
+        return None
+
+    try:
+        value_str = bytes(str_bytes).decode("utf8")
+    except UnicodeDecodeError:
+        # Most likely the memory is corrupted.
+        return None
+
+    try:
+        dummy_value = eval(value_str)
+    except:
+        print_traceback()
+        return None
+
+    return dummy_value
 
 def make_display_string(text: str):
-    return gdb.Value(display_string_prefix + text)
-
-def extract_display_string(value: gdb.Value):
-    assert is_display_string(value)
-    str_bytes = [int(value[i]) for i in range(len(display_string_prefix), value.type.sizeof)]
-    return bytes(str_bytes).decode("utf8")
-
-def is_display_string(value: gdb.Value):
-    if value.type.code != gdb.TYPE_CODE_ARRAY:
-        return False
-    if value.type.sizeof < len(display_string_prefix):
-        return False
-    target = value.type.target()
-    if target.sizeof != 1:
-        return False
-    try:
-        for i in range(len(display_string_prefix)):
-            if ord(display_string_prefix[i]) != int(value[i]):
-                return False
-    except gdb.MemoryError:
-        return False
-    return True
+    return make_dummy_value_printer(JustText(text))
 
 def eval_function(function_name, *args: t.List[gdb.Value]):
     arg_list = []
@@ -156,13 +189,6 @@ def print_ModifierData(modifier: gdb.Value):
 def print_bConstraint(constraint: gdb.Value):
     yield "Name", string_from_array(constraint["name"])
 
-class DisplayStringPrinter:
-    def __init__(self, value):
-        self.value = value
-
-    def to_string(self):
-        return extract_display_string(self.value)
-
 class SimpleStructPrinter:
     def __init__(self, value: gdb.Value, printer):
         self.value = value
@@ -204,8 +230,9 @@ class BlenderPrettyPrinter(gdb.printing.PrettyPrinter):
             return None
         if value.type.code == gdb.TYPE_CODE_PTR and value == nullptr:
             return None
-        if is_display_string(value):
-            return DisplayStringPrinter(value)
+        dummy_value_printer = extract_dummy_value_printer(value)
+        if dummy_value_printer is not None:
+            return dummy_value_printer
         if value.type.code == gdb.TYPE_CODE_PTR:
             target_type = value.type.target()
             if target_type is not None and target_type.name is not None:
