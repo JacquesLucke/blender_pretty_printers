@@ -90,6 +90,37 @@ class MapPrinter:
   def display_hint(self):
     return "map"
 
+class TypedBufferPrinter:
+  def __init__(self, value: gdb.Value):
+    self.value = value
+    self.type = value.type.template_argument(0)
+    self.size = value.type.template_argument(1)
+
+  def children(self):
+    data = self.value.cast(self.type).address
+    for i in range(self.size):
+      yield str(i), data[i]
+
+  def display_hint(self):
+    return "array"
+
+class ArrayPrinter:
+  def __init__(self, value: gdb.Value):
+    self.value = value
+
+  def to_string(self):
+    size = self.value["size_"]
+    return f"Size: {size}"
+
+  def children(self):
+    data = self.value["data_"]
+    size = self.value["size_"]
+    for i in range(size):
+      yield str(i), data[i]
+
+  def display_hint(self):
+    return "array"
+
 class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
   def __init__(self):
     super().__init__("blender-printers")
@@ -109,6 +140,10 @@ class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
       return SetPrinter(value)
     if type_name.startswith("blender::Map<"):
       return MapPrinter(value)
+    if type_name.startswith("blender::TypedBuffer<"):
+      return TypedBufferPrinter(value)
+    if type_name.startswith("blender::Array<"):
+      return ArrayPrinter(value)
     return None
 
 
