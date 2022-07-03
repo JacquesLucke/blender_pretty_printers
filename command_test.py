@@ -121,6 +121,26 @@ class ArrayPrinter:
   def display_hint(self):
     return "array"
 
+class VectorSetPrinter:
+  def __init__(self, value: gdb.Value):
+    self.value = value
+
+  def get_size(self):
+    return int(self.value["occupied_and_removed_slots_"] - self.value["removed_slots_"])
+
+  def to_string(self):
+    size = self.get_size()
+    return f"Size: {size}"
+
+  def children(self):
+    data = self.value["keys_"]
+    size = self.get_size()
+    for i in range(size):
+      yield str(i), data[i]
+
+  def display_hint(self):
+    return "array"
+
 class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
   def __init__(self):
     super().__init__("blender-printers")
@@ -144,6 +164,8 @@ class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
       return TypedBufferPrinter(value)
     if type_name.startswith("blender::Array<"):
       return ArrayPrinter(value)
+    if type_name.startswith("blender::VectorSet<"):
+      return VectorSetPrinter(value)
     return None
 
 
