@@ -132,6 +132,9 @@ class Value:
     def reinterpret_cast(self, type: Type) -> Value:
         pass
 
+    def __getitem__(self, subscript: t.Union[int, str]) -> Value:
+        pass
+
 
 def lookup_type(name: str, block=None) -> Type:
     pass
@@ -142,8 +145,56 @@ def lookup_global_symbol(name: str):
 def execute(command: str, from_tty=None, to_string=None):
     pass
 
-def parse_and_eval(expression: str) -> gdb.Value:
+def parse_and_eval(expression: str) -> Value:
+    pass
+
+def set_convenience_variable(name: str, value: Value):
+    pass
+
+def convenience_variable(name: str) -> Value | None:
     pass
 
 class MemoryError(Exception):
     pass
+
+class Command:
+    def __init__(self, name, command_class, complete_class=None, prefix=None):
+        pass
+
+    def dont_repeat(self):
+        pass
+
+    def invoke(self, argument: str, from_tty: bool):
+        pass
+
+    def complete(self, text: str, word: str) -> t.Union[t.Sequence[str], CompleteCode]:
+        pass
+
+# Does not actually exist.
+class CommandCode:
+    pass
+
+COMMAND_NONE: CommandCode
+COMMAND_RUNNING: CommandCode
+COMMAND_DATA: CommandCode
+COMMAND_STACK: CommandCode
+COMMAND_FILES: CommandCode
+COMMAND_SUPPORT: CommandCode
+COMMAND_STATUS: CommandCode
+COMMAND_BREAKPOINTS: CommandCode
+COMMAND_TRACEPOINTS: CommandCode
+COMMAND_TUI: CommandCode
+COMMAND_USER: CommandCode
+COMMAND_OBSCURE: CommandCode
+COMMAND_MAINTENANCE: CommandCode
+
+# Does not actually exist.
+class CompleteCode:
+    pass
+
+COMPLETE_NONE: CompleteCode
+COMPLETE_FILENAME: CompleteCode
+COMPLETE_LOCATION: CompleteCode
+COMPLETE_COMMAND: CompleteCode
+COMPLETE_SYMBOL: CompleteCode
+COMPLETE_EXPRESSION: CompleteCode
