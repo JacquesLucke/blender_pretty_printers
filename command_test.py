@@ -6,15 +6,13 @@ class BlenderPrint(gdb.Command):
 
   def invoke(self, arg, from_tty):
     value = gdb.parse_and_eval(arg)
-    slots = value["slots_"]["data_"]
-    slots_num = int(value["slots_"]["size_"])
-    for i in range(slots_num):
-      slot = slots[i]
-      slot_state = int(slot["state_"])
-      is_occupied = slot_state == 1
-      if is_occupied:
-        key = slot["key_buffer_"].cast(value.type.template_argument(0))
-        print(key)
+    impl = value["impl_"]
+    size = int(impl["size_"])
+    for i in range(size):
+      gdb.set_convenience_variable("a", impl)
+      sub_value = gdb.parse_and_eval(f"$a->get({i})")
+      print(sub_value)
+      gdb.set_convenience_variable("a", None)
 
 
 BlenderPrint()
@@ -141,6 +139,31 @@ class VectorSetPrinter:
   def display_hint(self):
     return "array"
 
+class VArrayPrinter:
+  def __init__(self, value: gdb.Value):
+    self.value = value
+
+  def get_size(self):
+    impl = self.value["impl_"]
+    size = int(impl["size_"])
+    return size
+
+  def to_string(self):
+    size = self.get_size()
+    return f"Size: {size}"
+
+  def children(self):
+    size = self.get_size()
+    impl = self.value["impl_"]
+    for i in range(size):
+      gdb.set_convenience_variable("varray_impl", impl)
+      value_at_index = gdb.parse_and_eval(f"$varray_impl->get({i})")
+      gdb.set_convenience_variable("varray_impl", None)
+      yield str(i), value_at_index
+
+  def display_hint(self):
+    return "array"
+
 class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
   def __init__(self):
     super().__init__("blender-printers")
@@ -166,6 +189,10 @@ class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
       return ArrayPrinter(value)
     if type_name.startswith("blender::VectorSet<"):
       return VectorSetPrinter(value)
+    if type_name.startswith("blender::VArray<"):
+      return VArrayPrinter(value)
+    if type_name.startswith("blender::VMutableArray"):
+      return VArrayPrinter(value)
     return None
 
 
