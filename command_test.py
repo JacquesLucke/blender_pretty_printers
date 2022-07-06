@@ -164,6 +164,33 @@ class VArrayPrinter:
   def display_hint(self):
     return "array"
 
+class MathVectorPrinter:
+  def __init__(self, value: gdb.Value):
+    self.value = value
+    self.base_type = value.type.template_argument(0)
+    self.size = value.type.template_argument(1)
+
+  def to_string(self):
+    values = [str(self.get(i)) for i in range(self.size)]
+    return "(" + ", ".join(values) + ")"
+
+  def children(self):
+      for i in range(self.size):
+        yield str(i), self.get(i)
+
+  def get(self, i):
+    # Avoid taking pointer of value in case the pointer is not available.
+    if 2 <= self.size <= 4:
+      if i == 0: return self.value["x"]
+      if i == 1: return self.value["y"]
+      if i == 2: return self.value["z"]
+      if i == 3: return self.value["w"]
+    return self.value["values"][i]
+
+  def display_hint(self):
+    return "array"
+
+
 class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
   def __init__(self):
     super().__init__("blender-printers")
@@ -191,8 +218,10 @@ class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
       return VectorSetPrinter(value)
     if type_name.startswith("blender::VArray<"):
       return VArrayPrinter(value)
-    if type_name.startswith("blender::VMutableArray"):
+    if type_name.startswith("blender::VMutableArray<"):
       return VArrayPrinter(value)
+    if type_name.startswith("blender::vec_struct_base<"):
+      return MathVectorPrinter(value)
     return None
 
 
