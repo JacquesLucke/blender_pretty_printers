@@ -191,6 +191,24 @@ class MathVectorPrinter:
     return "array"
 
 
+class SpanPrinter:
+  def __init__(self, value: gdb.Value):
+    self.value = value
+
+  def to_string(self):
+    size = self.value["size_"]
+    return f"Size: {size}"
+
+  def children(self):
+    data = self.value["data_"]
+    size = self.value["size_"]
+    for i in range(size):
+      yield str(i), data[i]
+
+  def display_hint(self):
+    return "array"
+
+
 class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
   def __init__(self):
     super().__init__("blender-printers")
@@ -222,6 +240,10 @@ class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
       return VArrayPrinter(value)
     if type_name.startswith("blender::vec_struct_base<"):
       return MathVectorPrinter(value)
+    if type_name.startswith("blender::Span<"):
+      return SpanPrinter(value)
+    if type_name.startswith("blender::MutableSpan<"):
+      return SpanPrinter(value)
     return None
 
 
