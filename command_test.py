@@ -229,7 +229,7 @@ class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
       return None
     if value_type.code == gdb.TYPE_CODE_PTR:
       return None
-    type_name = value_type.name
+    type_name = value_type.strip_typedefs().name
     if type_name is None:
       return None
     if type_name.startswith("blender::Vector<"):
