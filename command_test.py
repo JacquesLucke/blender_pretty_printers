@@ -238,6 +238,8 @@ class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
       return SetPrinter(value)
     if type_name.startswith("blender::Map<"):
       return MapPrinter(value)
+    if type_name.startswith("blender::MultiValueMap<"):
+      return MapPrinter(value["map_"])
     if type_name.startswith("blender::TypedBuffer<"):
       return TypedBufferPrinter(value)
     if type_name.startswith("blender::Array<"):
