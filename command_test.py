@@ -27,7 +27,7 @@ class VectorPrinter:
     vec_capacity_end = self.value["end_"]
     vec_size = vec_end - vec_begin
     vec_capacity = vec_capacity_end - vec_begin
-    return f"length: {vec_size}, capacity: {vec_capacity}"
+    return f"Size: {vec_size}"
 
   def children(self):
     begin = self.value["begin_"]
@@ -97,6 +97,20 @@ class MapPrinter:
 
   def display_hint(self):
     return "map"
+
+class MultiValueMapPrinter:
+  def __init__(self, value: gdb.Value):
+    self.value = value
+    self.map_value = value["map_"]
+
+  def to_string(self):
+    return MapPrinter(self.map_value).to_string()
+
+  def children(self):
+    return MapPrinter(self.map_value).children()
+
+  def display_hint(self):
+    return MapPrinter(self.map_value).display_hint()
 
 class TypedBufferPrinter:
   def __init__(self, value: gdb.Value):
@@ -239,7 +253,7 @@ class BlenderPrettyPrinters(gdb.printing.PrettyPrinter):
     if type_name.startswith("blender::Map<"):
       return MapPrinter(value)
     if type_name.startswith("blender::MultiValueMap<"):
-      return MapPrinter(value["map_"])
+      return MultiValueMapPrinter(value)
     if type_name.startswith("blender::TypedBuffer<"):
       return TypedBufferPrinter(value)
     if type_name.startswith("blender::Array<"):
