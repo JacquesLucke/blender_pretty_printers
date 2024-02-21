@@ -77,13 +77,23 @@ class MapPrinter:
     slots_num = int(self.value["slots_"]["size_"])
     for i in range(slots_num):
       slot = slots[i]
-      slot_state = int(slot["state_"])
-      is_occupied = slot_state == 1
-      if is_occupied:
-        key = slot["key_buffer_"].cast(self.key_type)
-        value = slot["value_buffer_"].cast(self.value_type)
-        yield "Key", key
-        yield "Value", value
+      if self.key_type.code == gdb.TYPE_CODE_PTR:
+        key = slot["key_"]
+        key_int = int(key)
+        # The key has two special values for an empty and removed slot.
+        is_occupied = key_int < 2**64 - 2
+        if is_occupied:
+          value = slot["value_buffer_"].cast(self.value_type)
+          yield "Key", key
+          yield "Value", value
+      else:
+        slot_state = int(slot["state_"])
+        is_occupied = slot_state == 1
+        if is_occupied:
+          key = slot["key_buffer_"].cast(self.key_type)
+          value = slot["value_buffer_"].cast(self.value_type)
+          yield "Key", key
+          yield "Value", value
 
   def display_hint(self):
     return "map"
